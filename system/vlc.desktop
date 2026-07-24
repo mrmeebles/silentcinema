@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Exec=/usr/bin/vlc
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=VLC
+Comment=Starts VLC at login

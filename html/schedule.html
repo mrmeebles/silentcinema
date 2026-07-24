@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Summer Camp 2026</title>
+  <link rel="stylesheet" href="schedule.css?v=3" />
+</head>
+<body>
+
+  <div class="sticky-header">
+    <div class="header-top">
+      <h1>Summer Camp 2026</h1>
+      <div class="search-wrap">
+        <label class="search-box" aria-label="Search films">
+          <svg class="search-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="2"/>
+            <line x1="12.5" y1="12.5" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <input class="search-input" type="search" placeholder="" aria-label="Search films">
+        </label>
+        <div id="search-dropdown" class="search-dropdown" hidden></div>
+      </div>
+    </div>
+    <div class="tabs-bar" role="tablist" id="tabs-bar"></div>
+  </div>
+
+  <div class="table-wrapper">
+    <div id="tables-container"></div>
+  </div>
+
+  <div class="bottom-bar" id="bottom-bar" hidden>
+    <span class="bottom-bar-label" id="bottom-bar-label">Up Next</span>
+    <span class="bottom-bar-title" id="bottom-bar-title"></span>
+    <span class="bottom-bar-countdown" id="bottom-bar-countdown"></span>
+  </div>
+
+  <script>
+    let SCHEDULE = [];
+    let DETAILS   = {};
+
+    function parseMins(hhmm) {
+      const [h, m] = hhmm.split(':').map(Number);
+      return h * 60 + m;
+    }
+
+    function localDateStr(d) {
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function fmt12(hhmm) {
+      let [h, m] = hhmm.split(':').map(Number);
+      const ampm = h < 12 ? 'AM' : 'PM';
+      if (h === 0) h = 12;
+      else if (h > 12) h -= 12;
+      return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
+    }
+
+    function isNowPlaying(startMins, endMins, nowMins) {
+      if (endMins > startMins) return nowMins >= startMins && nowMins < endMins;
+      return nowMins >= startMins; // crosses midnight: only true once film has started
+    }
+
+    function switchTab(idx) {
+      document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', i === idx);
+        btn.setAttribute('aria-selected', String(i === idx));
+      });
+      document.querySelectorAll('.day-table').forEach((tbl, i) => {
+        tbl.classList.toggle('active', i === idx);
+      });
+
+      // Scroll to active row if this is its day, otherwise first row of the day
+      const activeRow = document.querySelector('tr.now-playing')
+        || document.querySelector('.up-next-badge')?.closest('tr');
+      const tables = [...document.querySelectorAll('.day-table')];
+      const activeIdx = activeRow ? tables.indexOf(activeRow.closest('.day-table')) : -1;
+      if (activeIdx === idx && activeRow) {
+        scrollToRow(activeRow, 'start');
+      } else {
+        const isMobile = window.innerWidth <= 480;
+        if (isMobile) {
+          const firstRow = document.querySelector(`#day-${idx} tbody tr`);
+          if (firstRow) scrollToRow(firstRow, 'start');
+        } else {
+          const theadRow = document.querySelector(`#day-${idx} thead tr`);
+          if (theadRow) scrollToRow(theadRow, 'start');
+        }
+      }
+    }
+
+    function highlight() {
+      const now          = new Date();
+      const todayStr     = localDateStr(now);
+      const yd           = new Date(now);
+      yd.setDate(yd.getDate() - 1);
+      const yesterdayStr = localDateStr(yd);
+      const tm           = new Date(now);
+      tm.setDate(tm.getDate() + 1);
+      const tomorrowStr  = localDateStr(tm);
+      const nowMins      = now.getHours() * 60 + now.getMinutes();
+
+      let anyPlaying = false;
+      let playingRow = null;
+      let playingDay = null;
+
+      SCHEDULE.forEach((day, i) => {
+        document.querySelectorAll(`#day-${i} tbody tr.film-row`).forEach(row => {
+          const startMins = parseMins(row.dataset.start);
+          const endMins   = parseMins(row.dataset.end);
+          let playing = false;
+          if (day.date === todayStr) {
+            playing = isNowPlaying(startMins, endMins, nowMins);
+          } else if (day.date === yesterdayStr && endMins < startMins) {
+            // Overnight film from yesterday still running into today's early hours
+            playing = nowMins < endMins;
+          }
+          if (playing) { anyPlaying = true; playingRow = row; playingDay = day; }
+
+          row.classList.toggle('now-playing', playing);
+
+          const titleCell = row.cells[0];
+          const existing  = titleCell.querySelector('.now-playing-badge');
+          if (playing && !existing) {
+            const badge = document.createElement('span');
+            badge.className = 'now-playing-badge';
+            badge.textContent = 'Now playing';
+            titleCell.appendChild(badge);
+          } else if (!playing && existing) {
+            existing.remove();
+          }
+          // Clear any stale up-next badge each pass
+          titleCell.querySelector('.up-next-badge')?.remove();
+        });
+      });
+
+      // Update bottom bar
+      if (anyPlaying && playingRow) {
+        const startMins = parseMins(playingRow.dataset.start);
+        const endMins   = parseMins(playingRow.dataset.end);
+        let endDateStr;
+        if (playingDay.date === yesterdayStr) {
+          endDateStr = todayStr;    // overnight film ends today
+        } else if (endMins < startMins) {
+          endDateStr = tomorrowStr; // today's film crosses midnight
+        } else {
+          endDateStr = playingDay.date;
+        }
+        const bar = document.getElementById('bottom-bar');
+        document.getElementById('bottom-bar-label').textContent = 'Now Playing';
+        document.getElementById('bottom-bar-title').textContent = playingRow.dataset.title;
+        bar.dataset.targetMins = endMins;
+        bar.dataset.targetDate = endDateStr;
+        bar.removeAttribute('hidden');
+        document.body.classList.add('has-bottom-bar');
+        updateCountdown();
+      }
+      if (!anyPlaying) {
+        let found = false;
+        SCHEDULE.forEach((day, i) => {
+          if (found) return;
+          day.films.forEach((f, j) => {
+            if (found) return;
+            const startMins  = parseMins(f.start);
+            const isUpcoming =
+              day.date > todayStr ||
+              (day.date === todayStr && startMins > nowMins);
+            if (isUpcoming) {
+              found = true;
+              const row = document.querySelectorAll(`#day-${i} tbody tr.film-row`)[j];
+              if (row) {
+                const badge = document.createElement('span');
+                badge.className = 'up-next-badge';
+                badge.textContent = 'Up Next';
+                row.cells[0].appendChild(badge);
+                const bar = document.getElementById('bottom-bar');
+                document.getElementById('bottom-bar-label').textContent = 'Up Next';
+                document.getElementById('bottom-bar-title').textContent = f.title;
+                bar.dataset.targetMins = parseMins(f.start);
+                bar.dataset.targetDate = day.date;
+                bar.removeAttribute('hidden');
+                document.body.classList.add('has-bottom-bar');
+                updateCountdown();
+              }
+            }
+          });
+        });
+        if (!found) {
+          document.getElementById('bottom-bar').setAttribute('hidden', '');
+          document.body.classList.remove('has-bottom-bar');
+        }
+      }
+    }
+
+    function updateCountdown() {
+      const bar = document.getElementById('bottom-bar');
+      if (bar.hidden) return;
+      const targetMins = +bar.dataset.targetMins;
+      const targetDate = bar.dataset.targetDate;
+      const now        = new Date();
+      const nowSecs    = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+      const todayStr   = localDateStr(now);
+      let deltaSecs;
+      if (targetDate === todayStr) {
+        deltaSecs = targetMins * 60 - nowSecs;
+      } else {
+        deltaSecs = (24 * 60 - (nowSecs / 60)) * 60 + targetMins * 60;
+      }
+      if (deltaSecs <= 0) {
+        highlight();
+        return;
+      }
+      document.getElementById('bottom-bar-countdown').textContent = fmtHMS(deltaSecs);
+    }
+
+    function secsUntil(dateStr, timeStr) {
+      return Math.floor((new Date(`${dateStr}T${timeStr}:00`) - Date.now()) / 1000);
+    }
+
+    function fmtHMS(secs) {
+      if (secs < 3600) {
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        return `${m}:${String(s).padStart(2,'0')}`;
+      }
+      if (secs < 86400) {
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      }
+      const d = Math.floor(secs / 86400);
+      const h = Math.floor((secs % 86400) / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      return `${d}:${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    function filmCountdownText(startDate, startTime, endDate, endTime) {
+      if (secsUntil(endDate, endTime) < 0)     return 'finished';
+      if (secsUntil(startDate, startTime) <= 0) return 'now playing';
+      return fmtHMS(secsUntil(startDate, startTime));
+    }
+
+    function renderSearchDropdown(query) {
+      const dropdown = document.getElementById('search-dropdown');
+      if (!query) { dropdown.hidden = true; return; }
+      const q = query.toLowerCase();
+      const results = [];
+      SCHEDULE.forEach((day, dayIdx) => {
+        day.films.forEach(film => {
+          if (film.title.toLowerCase().includes(q)) results.push({ day, dayIdx, film });
+        });
+      });
+      results.sort((a, b) => {
+        const priority = ({ day, film }) => {
+          const endDate = parseMins(film.end) < parseMins(film.start)
+            ? localDateStr(new Date(new Date(day.date).getTime() + 86400000))
+            : day.date;
+          if (secsUntil(endDate, film.end) < 0)      return 2; // finished
+          if (secsUntil(day.date, film.start) <= 0)  return 0; // now playing
+          return 1; // upcoming
+        };
+        const pa = priority(a), pb = priority(b);
+        if (pa !== pb) return pa - pb;
+        if (pa === 1) {
+          // upcoming: sort by start date+time ascending
+          const ta = new Date(`${a.day.date}T${a.film.start}:00`);
+          const tb = new Date(`${b.day.date}T${b.film.start}:00`);
+          if (ta - tb !== 0) return ta - tb;
+        }
+        return a.film.title.localeCompare(b.film.title);
+      });
+      if (!results.length) {
+        dropdown.innerHTML = '<div class="search-no-results">No films found</div>';
+        dropdown.hidden = false;
+        return;
+      }
+      dropdown.innerHTML = results.map(({ day, dayIdx, film }) => {
+        const d = DETAILS[film.title] || {};
+        const posterHtml = d.poster
+          ? `<img class="search-result-poster" src="images/${d.poster}" alt="" loading="lazy">`
+          : `<div class="search-result-poster search-result-no-poster"></div>`;
+        const endDate = parseMins(film.end) < parseMins(film.start)
+          ? localDateStr(new Date(new Date(day.date).getTime() + 86400000))
+          : day.date;
+        const cdText = filmCountdownText(day.date, film.start, endDate, film.end);
+        return `<div class="search-result" data-day-idx="${dayIdx}" data-title="${film.title.replace(/"/g,'&quot;')}">
+          ${posterHtml}
+          <div class="search-result-info">
+            <div class="search-result-title">${film.title}</div>
+            <div class="search-result-meta">${day.label} · ${fmt12(film.start)} · <span class="search-countdown" data-start-date="${day.date}" data-start-time="${film.start}" data-end-date="${endDate}" data-end-time="${film.end}">${cdText}</span></div>
+          </div>
+        </div>`;
+      }).join('');
+      dropdown.hidden = false;
+    }
+
+    function updateSearchCountdowns() {
+      document.querySelectorAll('.search-countdown').forEach(el => {
+        el.textContent = filmCountdownText(
+          el.dataset.startDate, el.dataset.startTime,
+          el.dataset.endDate,   el.dataset.endTime
+        );
+      });
+    }
+
+    function openAccordion(row) {
+      row.classList.add('expanded');
+      const detailsRow = row.nextElementSibling;
+      if (!detailsRow) return;
+      const bottomBar  = document.getElementById('bottom-bar');
+      const viewBottom = (bottomBar && !bottomBar.hidden)
+        ? bottomBar.getBoundingClientRect().top - 16
+        : window.innerHeight - 16;
+      const collapse   = detailsRow.querySelector('.film-details-collapse');
+      const inner      = detailsRow.querySelector('.film-details-inner');
+      // Force reflow so scrollHeight is accurate (needed on Safari)
+      void collapse?.offsetHeight;
+      // scrollHeight doesn't include the padding that is transitioning from 0→1rem,
+      // so add 2×1rem (top+bottom) manually
+      const remPx   = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const contentH = collapse ? collapse.scrollHeight + remPx * 2 : 0;
+      const overshoot = row.getBoundingClientRect().bottom + contentH - viewBottom;
+      if (overshoot > 0) {
+        const spacer = document.createElement('div');
+        spacer.style.cssText = `height:${contentH}px;pointer-events:none;`;
+        document.body.appendChild(spacer);
+        window.scrollBy({ top: overshoot, behavior: 'smooth' });
+        setTimeout(() => spacer.remove(), 400);
+      }
+    }
+
+    function scrollToRow(row, block = 'center') {
+      const headerH = document.querySelector('.sticky-header')?.offsetHeight ?? 0;
+      const rect    = row.getBoundingClientRect();
+      if (block === 'start') {
+        window.scrollBy({ top: rect.top - headerH - 16, behavior: 'smooth' });
+      } else {
+        const visibleH = window.innerHeight - headerH;
+        window.scrollBy({ top: rect.top - headerH - visibleH / 2 + rect.height / 2, behavior: 'smooth' });
+      }
+    }
+
+    function scrollToActive() {
+      const row = document.querySelector('tr.now-playing')
+        || document.querySelector('.up-next-badge')?.closest('tr');
+      if (row) scrollToRow(row, 'center');
+    }
+
+    function buildTables() {
+      const tabsBar   = document.getElementById('tabs-bar');
+      const container = document.getElementById('tables-container');
+      tabsBar.innerHTML = '';
+      container.innerHTML = '';
+      const todayStr  = localDateStr(new Date());
+      let activeIdx   = SCHEDULE.findIndex(d => d.date === todayStr);
+      if (activeIdx === -1) activeIdx = 0;
+
+      SCHEDULE.forEach((day, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'tab-btn' + (i === activeIdx ? ' active' : '');
+        btn.textContent = day.label.split(' ')[0];
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', String(i === activeIdx));
+        btn.addEventListener('click', () => switchTab(i));
+        tabsBar.appendChild(btn);
+
+        const table = document.createElement('table');
+        table.id = `day-${i}`;
+        table.className = 'day-table' + (i === activeIdx ? ' active' : '');
+        table.setAttribute('role', 'tabpanel');
+        table.innerHTML = `
+          <thead><tr><th>Title</th><th>Start</th><th>End</th><th>Location</th><th></th></tr></thead>
+          <tbody>${day.films.map(f => {
+            const d = DETAILS[f.title] || {};
+            const posterHtml = d.poster
+              ? `<img class="film-poster" src="images/${d.poster}" alt="${f.title} poster" loading="lazy">`
+              : '';
+            const metaHtml = [
+              d.director ? `<p class="film-meta"><span class="film-meta-label">Director</span> <span class="film-meta-value">${d.director}</span></p>` : '',
+              d.stars?.length ? `<p class="film-meta"><span class="film-meta-label">Starring</span> <span class="film-meta-value">${d.stars.join(' \u00b7 ')}</span></p>` : '',
+              d.tagline  ? `<p class="film-tagline">&ldquo;${d.tagline}&rdquo;</p>` : '',
+              d.summary  ? `<p class="film-summary">${d.summary}</p>` : '',
+            ].join('');
+            return `
+            <tr class="film-row" tabindex="0" data-start="${f.start}" data-end="${f.end}" data-title="${f.title}">
+              <td>${f.title}</td>
+              <td data-label="Start"><span class="time time-single">${fmt12(f.start)}</span><span class="time-range"><span class="time">${fmt12(f.start)}</span> – <span class="time">${fmt12(f.end)}</span></span></td>
+              <td data-label="End"><span class="time">${fmt12(f.end)}</span></td>
+              <td data-label="Location"><span class="loc loc-${f.location.toLowerCase()}">${f.location}</span></td>
+              <td class="toggle-cell"><span class="toggle-chevron"></span></td>
+            </tr>
+            <tr class="film-details-row">
+              <td colspan="5"><div class="film-details-collapse"><div class="film-details-inner">${posterHtml}<div class="film-details-text">${metaHtml}</div></div></div></td>
+            </tr>`;
+          }).join('')}
+          </tbody>`;
+        table.addEventListener('click', e => {
+          const row = e.target.closest('tr.film-row');
+          if (!row) return;
+          const isOpen = row.classList.contains('expanded');
+          document.querySelectorAll('tr.film-row.expanded').forEach(r => r.classList.remove('expanded'));
+          if (!isOpen) openAccordion(row);
+        });
+        table.addEventListener('keydown', e => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          const row = e.target.closest('tr.film-row');
+          if (!row) return;
+          e.preventDefault();
+          const isOpen = row.classList.contains('expanded');
+          document.querySelectorAll('tr.film-row.expanded').forEach(r => r.classList.remove('expanded'));
+          if (!isOpen) openAccordion(row);
+        });
+        container.appendChild(table);
+      });
+    }
+
+    function fitHeaderPadding() {
+      const hdr = document.querySelector('.sticky-header');
+      document.body.style.paddingTop = hdr.offsetHeight + 'px';
+    }
+    Promise.all([
+      fetch('schedule.json').then(r => r.json()),
+      fetch('details.json').then(r => r.json()).catch(() => ({}))
+    ]).then(([scheduleData, detailsData]) => {
+      SCHEDULE = scheduleData;
+      DETAILS  = detailsData;
+      buildTables();
+      fitHeaderPadding();
+      window.addEventListener('resize', fitHeaderPadding);
+      highlight();
+      scrollToActive();
+      setInterval(() => {
+        fetch('schedule.json')
+          .then(r => r.json())
+          .then(data => {
+            if (JSON.stringify(data) !== JSON.stringify(SCHEDULE)) {
+              SCHEDULE = data;
+              buildTables();
+            }
+            highlight();
+          });
+      }, 60_000);
+      setInterval(() => { updateCountdown(); updateSearchCountdowns(); }, 1_000);
+
+      // Search
+      const searchInput    = document.querySelector('.search-input');
+      const searchDropdown = document.getElementById('search-dropdown');
+      searchInput.addEventListener('input', () => renderSearchDropdown(searchInput.value.trim()));
+      searchInput.addEventListener('focus', () => { if (searchInput.value.trim()) renderSearchDropdown(searchInput.value.trim()); });
+      searchInput.addEventListener('blur',  () => setTimeout(() => { searchDropdown.hidden = true; }, 200));
+      searchDropdown.addEventListener('mousedown', e => {
+        e.preventDefault(); // keep focus in input
+        const result = e.target.closest('.search-result');
+        if (!result) return;
+        const dayIdx = +result.dataset.dayIdx;
+        const title  = result.dataset.title;
+        switchTab(dayIdx);
+        const row = [...document.querySelectorAll(`#day-${dayIdx} tbody tr.film-row`)]
+          .find(r => r.dataset.title === title);
+        if (row) {
+          document.querySelectorAll('tr.film-row.expanded').forEach(r => r.classList.remove('expanded'));
+          setTimeout(() => scrollToRow(row, 'center'), 50);
+          setTimeout(() => openAccordion(row), 50);
+        }
+        searchInput.value = '';
+        searchDropdown.hidden = true;
+        searchInput.blur();
+      });
+    });
+  </script>
+</body>
+</html>

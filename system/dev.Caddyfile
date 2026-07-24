@@ -1,0 +1,18 @@
+# The address of your server
+localhost {
+	mercure {
+		# Publisher JWT key
+		publisher_jwt !ChangeThisMercureHubJWTSecretKey!
+		# Subscriber JWT key
+		subscriber_jwt !ChangeThisMercureHubJWTSecretKey!
+		anonymous true
+		# demo
+		cors_origins http://192.168.0.144:8008
+	}
+
+	# respond "Not Found" 404
+	root /home/andreas/Documents/html/
+}
+192.168.0.144:8008 {
+	root /home/andreas/Documents/html/
+}

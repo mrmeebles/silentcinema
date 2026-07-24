@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#060a07">
+  <title>SILENT CINEMA</title>
+<!--  <link rel="preconnect" href="https://fonts.googleapis.com">-->
+<!--  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>-->
+<!--  <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Special+Elite&display=swap" rel="stylesheet">-->
+  <script src="howler.js"></script>
+  <script src="main-seek.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:     #060a07;
+      --blood:  #cc0000;
+      --ember:  #ff8c1a;
+      --white:  #f8f4ec;
+      --muted:  #8a9e88;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      background: var(--bg);
+      font-family: 'Special Elite', 'Courier New', monospace;
+      color: var(--white);
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Grain */
+    .grain {
+      position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 90; pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+      opacity: 0.045;
+    }
+
+    /* Scanlines */
+    .scanlines {
+      position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 91; pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+        rgba(0,0,0,0.13) 2px, rgba(0,0,0,0.13) 4px
+      );
+    }
+
+    /* Vignette */
+    .vignette {
+      position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 89; pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.75) 100%);
+    }
+
+    /* Moon */
+    .moon {
+      position: fixed; top: 6vh; right: 8vw;
+      width: 50px; height: 50px; border-radius: 50%;
+      background: radial-gradient(circle at 37% 37%, #eae5da 0%, #8a9272 100%);
+      box-shadow: 0 0 18px 7px rgba(200,195,180,0.11);
+      z-index: 100;
+      animation: moon-breathe-dark 11s ease-in-out infinite;
+    }
+    @keyframes moon-breathe-light {
+      0%,100% { opacity: 0.8; }
+      50%      { opacity: 1; }
+    }
+
+    @keyframes moon-breathe-dark {
+      0%,100% { opacity: 0.2; }
+      50%      { opacity: 0.5; }
+    }
+
+    .moon.dismiss { animation: moon-breathe-dark 11s ease-in-out infinite; }
+    .moon.show { animation: moon-breathe-light 11s ease-in-out infinite; }
+
+    /* Stars */
+    .stars { position: fixed; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; z-index: 1; }
+    .star {
+      position: absolute; background: white; border-radius: 50%;
+      animation: twinkle var(--dur,3s) ease-in-out infinite var(--dly,0s);
+    }
+    @keyframes twinkle {
+      0%,100% { opacity: var(--lo,.2); }
+      50%      { opacity: var(--hi,.9); }
+    }
+
+    /* Fireflies */
+    .firefly {
+      position: fixed; width: 3px; height: 3px; border-radius: 50%;
+      background: #ff9a30;
+      z-index: 3;
+      animation: ff-rise var(--dur,7s) ease-in-out infinite var(--dly,0s);
+    }
+    /* Glow via pseudo-element opacity — avoids box-shadow repaint */
+    .firefly::after {
+      content: ''; position: absolute;
+      top: -5px; right: -5px; bottom: -5px; left: -5px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,180,60,0.7) 0%, transparent 70%);
+      animation: ff-glow 2s ease-in-out infinite alternate var(--dly,0s);
+    }
+    @keyframes ff-rise {
+      0%   { transform: translate(0,0); opacity: 0; }
+      12%  { opacity: 1; }
+      50%  { transform: translate(var(--dx,15px), -38vh); }
+      88%  { opacity: 0.5; }
+      100% { transform: translate(var(--dx2,-10px), -78vh); opacity: 0; }
+    }
+    @keyframes ff-glow {
+      from { opacity: 0.4; }
+      to   { opacity: 1; }
+    }
+
+    /* Trees */
+    .trees {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 24vh;
+      pointer-events: none; z-index: 6;
+      display: flex; align-items: flex-end; justify-content: space-around;
+    }
+    .tree {
+      /*background: #020603;*/
+      background: #338844;
+      clip-path: polygon(50% 0%, 3% 100%, 97% 100%);
+      flex-shrink: 0;
+    }
+
+    /* Fog */
+    .fog {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 14vh;
+      z-index: 7; pointer-events: none;
+      background: linear-gradient(to top, rgba(8,16,9,0.92) 0%, rgba(8,14,9,0.55) 55%, transparent 100%);
+    }
+
+    /* Main content */
+    .screen {
+      position: relative; z-index: 10;
+      width: 100%; max-width: 400px;
+      padding: 2rem 1.6rem 7rem;
+      display: flex; flex-direction: column;
+      align-items: center; text-align: center;
+    }
+
+    h1 {
+      font-family: 'Creepster', cursive;
+      font-size: clamp(3.8rem, 20vw, 5.8rem);
+      line-height: 0.88;
+      color: var(--white);
+      text-shadow:
+        3px 3px 0 var(--blood),
+        5px 5px 0 rgba(139,0,0,0.32),
+        0 0 55px rgba(195,15,15,0.18);
+    }
+    .year {
+      display: block;
+      font-family: 'Creepster', cursive;
+      font-size: clamp(5.5rem, 27vw, 8.5rem);
+      line-height: 0.8;
+      color: transparent;
+      -webkit-text-stroke: 2px #dd1111;
+      margin-bottom: 0.35rem;
+    }
+    .tagline {
+      font-size: 0.68rem; letter-spacing: 0.38em;
+      color: var(--ember); text-transform: uppercase;
+      margin-bottom: 2.5rem;
+    }
+
+    /* Status panel */
+    .panel {
+      width: 100%; padding: 1.5rem 1.6rem;
+      border: 1px solid rgba(255,255,255,0.065);
+      background: rgba(0,0,0,0.48);
+      min-height: 84px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 0.55rem;
+    }
+
+    .p-label {
+      font-size: 0.54rem; letter-spacing: 0.42em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .p-text {
+      font-size: 1.2rem; letter-spacing: 0.04em;
+      color: var(--white); text-align: center; line-height: 1.5;
+    }
+
+    /* State display logic */
+    [data-show] { display: none; }
+    [data-show="idle"]    { display: flex; flex-direction: column; align-items: center; gap: 0.55rem; }
+    body.state-waiting [data-show="idle"]    { display: none; }
+    body.state-waiting [data-show="waiting"] { display: flex; flex-direction: column; align-items: center; gap: 0.55rem; }
+
+    /* Equalizer bars — scaleY keeps animation on GPU, no layout cost */
+    .eq-bars {
+      display: flex; align-items: flex-end; gap: 4px;
+      height: 22px; margin-top: 0.4rem;
+    }
+    .eq-bar {
+      width: 4px; height: 22px; border-radius: 2px 2px 0 0;
+      background: var(--ember);
+      transform-origin: bottom;
+      animation: eq var(--dur,.7s) ease-in-out infinite alternate var(--dly,0s);
+    }
+    @keyframes eq {
+      from { transform: scaleY(0.1);          opacity: 0.5; }
+      to   { transform: scaleY(var(--sy, 1)); opacity: 1; }
+    }
+
+    /* Reload button */
+    .reload-btn {
+      background: none; border: 1px solid rgba(255,255,255,0.35);
+      color: rgba(255,255,255,0.7); font-family: inherit;
+      font-size: 0.7rem; letter-spacing: 0.25em; text-transform: uppercase;
+      padding: 0.6rem 1.3rem; cursor: pointer; white-space: nowrap;
+      margin-top: 1.4rem;
+      transition: color 0.2s, border-color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .reload-btn:active { color: var(--white); border-color: rgba(255,255,255,0.7); }
+
+    /* Reduced motion — disable all animations for low-power / sensitive users */
+    @media (prefers-reduced-motion: reduce) {
+      .star, .moon, .eq-bar, .cursor, .play-headphones,
+      .play-btn, .play-btn::before, .play-btn::after { animation: none; box-shadow: none; }
+      .firefly { display: none; }
+      .eq-bar { transform: scaleY(0.6); opacity: 0.8; }
+    }
+
+    /* Typewriter cursor */
+    .cursor {
+      display: inline-block; width: 2px; height: 1em;
+      background: var(--ember); vertical-align: text-bottom;
+      animation: blink 0.85s step-end infinite; margin-left: 2px;
+    }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* Play overlay */
+    .play-overlay {
+      position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 50;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 2rem;
+      padding-bottom: 1.4rem;
+      background: rgba(6,10,7,0.88);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.45s ease;
+    }
+    .play-overlay.show { opacity: 1; pointer-events: all; }
+    .play-overlay.dismiss {
+      animation: overlay-dismiss 0.75s ease forwards;
+      pointer-events: none;
+    }
+    @keyframes overlay-dismiss {
+      0%   { opacity: 1; }
+      22%  { opacity: 1; background: rgba(139,0,0,0.55); }
+      100% { opacity: 0; }
+    }
+
+    .play-btn {
+      width: 160px; height: 160px; border-radius: 50%;
+      border: 3px solid rgba(230,0,0,1);
+      background: rgba(180,0,0,0.35);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; position: relative;
+      animation: btn-breathe 2.4s ease-in-out infinite;
+      -webkit-tap-highlight-color: transparent;
+      outline: none; touch-action: manipulation;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .play-btn:active { transform: scale(0.93); background: rgba(220,0,0,0.6); }
+    .play-btn::before, .play-btn::after {
+      content: ''; position: absolute; border-radius: 50%;
+      border: 2px solid rgba(220,0,0,0.5);
+      animation: ring-pulse 2.4s ease-in-out infinite;
+    }
+    .play-btn::before { top: -18px; right: -18px; bottom: -18px; left: -18px; animation-delay: -0.4s; }
+    .play-btn::after  { top: -36px; right: -36px; bottom: -36px; left: -36px; animation-delay: -0.8s; }
+    @keyframes ring-pulse {
+      0%,100% { transform: scale(1);    opacity: 0.9; }
+      50%     { transform: scale(1.04); opacity: 0.4; }
+    }
+    @keyframes btn-breathe {
+      0%,100% { transform: scale(1);    box-shadow: 0 0 40px rgba(220,0,0,0.7), 0 0 80px rgba(200,0,0,0.3); }
+      50%     { transform: scale(1.03); box-shadow: 0 0 70px rgba(240,0,0,0.9), 0 0 120px rgba(220,0,0,0.4); }
+    }
+
+    .play-triangle {
+      width: 0; height: 0;
+      border-style: solid;
+      border-width: 30px 0 30px 54px;
+      border-color: transparent transparent transparent #ffffff;
+      margin-left: 10px;
+      filter: drop-shadow(0 0 16px rgba(255,255,255,0.7));
+    }
+
+    .play-headphones {
+      position: absolute; top: 4.5rem; left: 1rem; right: 1rem;
+      font-size: 1.35rem; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #ff2222;
+      text-align: center; line-height: 1.4;
+      text-shadow: 0 0 18px rgba(255,0,0,0.6);
+      animation: flicker-hp 3s ease-in-out infinite;
+    }
+    @media (max-width: 480px) {
+      .play-headphones { font-size: 1.1rem; }
+    }
+
+    @keyframes flicker-hp {
+      0%,70%,74%,78%,100% { opacity: 1;   text-shadow: 0 0 18px rgba(255,0,0,0.6); }
+      71%                  { opacity: 0.1; text-shadow: none; }
+      73%                  { opacity: 0.9; }
+      75%                  { opacity: 0.2; text-shadow: none; }
+      77%                  { opacity: 1;   }
+    }
+
+    .play-label {
+      font-size: 0.9rem; letter-spacing: 0.28em;
+      text-transform: uppercase; color: var(--white);
+    }
+
+
+    /* latin */
+    @font-face {
+      font-family: 'Creepster';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url(fonts/AlZy_zVUqJz4yMrniH4Rcn35fh4Dog.woff2) format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    /* latin-ext */
+    @font-face {
+      font-family: 'Special Elite';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url(fonts/XLYgIZbkc4JPUL5CVArUVL0ntn4OSFNuQsI3GA.woff2) format('woff2');
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    }
+    /* latin */
+    @font-face {
+      font-family: 'Special Elite';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url(fonts/XLYgIZbkc4JPUL5CVArUVL0ntnAOSFNuQsI.woff2) format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+
+  </style>
+</head>
+<body>
+
+<audio id="audio1" preload="auto" loop></audio>
+<audio id="audio2" preload="auto" loop></audio>
+
+<div class="grain"    aria-hidden="true"></div>
+<div class="scanlines" aria-hidden="true"></div>
+<div class="vignette"  aria-hidden="true"></div>
+<div id= "moonButton" class="moon"      aria-hidden="true" onClick='toggle_debug()'></div>
+<div class="stars" id="stars" aria-hidden="true"></div>
+<div id="fireflies"    aria-hidden="true"></div>
+<div class="trees" id="trees" aria-hidden="true"></div>
+<div class="fog"       aria-hidden="true"></div>
+
+<!-- Play gate -->
+<div class="play-overlay" id="playOverlay" role="dialog" aria-modal="true" aria-label="Start screening audio">
+  <div class="play-headphones">&#9888; insert your headphones &#9888;</div>
+  <div class="play-btn" id="playBtn" role="button" tabindex="0" aria-label="Start audio" onClick="startTheShow()">
+    <div class="play-triangle" aria-hidden="true"></div>
+  </div>
+  <div class="play-label">tap to tune in</div>
+</div>
+
+<!-- Main content -->
+<main class="screen">
+  <h1>SILENT<br>CINEMA</h1>
+  <span class="year">2026</span>
+  <p class="tagline">open air screenings</p>
+
+  <div class="panel">
+    <div data-show="idle">
+      <div class="p-label">tonight</div>
+      <div class="p-text" id="idleMsg"></div>
+    </div>
+
+    <div data-show="waiting">
+      <div class="p-label">now playing</div>
+      <div class="p-text" id="waitingMsg"></div>
+      <div class="eq-bars" aria-hidden="true">
+        <div class="eq-bar" style="--dur:.6s; --dly:0s;   --sy:0.91"></div>
+        <div class="eq-bar" style="--dur:.9s; --dly:.15s; --sy:0.64"></div>
+        <div class="eq-bar" style="--dur:.5s; --dly:.05s; --sy:1.0"></div>
+        <div class="eq-bar" style="--dur:.8s; --dly:.25s; --sy:0.55"></div>
+        <div class="eq-bar" style="--dur:.7s; --dly:.1s;  --sy:0.82"></div>
+      </div>
+    </div>
+
+  </div>
+
+<!--  <button class="reload-btn" id="reloadBtn">&#8635; resume audio</button>-->
+  <button class="reload-btn" onClick="window.open('schedule.html', '_blank').focus();">open schedule</button>
+</main>
+
+<script>
+
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+
+
+// Stars
+const starsEl = document.getElementById('stars');
+for (let i = 0; i < 55; i++) {
+  const s = document.createElement('div');
+  const sz = Math.random() > 0.82 ? 3 : 2;
+  s.className = 'star';
+  s.style.cssText = [
+    `left:${Math.random()*100}%`,
+    `top:${Math.random()*62}%`,
+    `width:${sz}px`, `height:${sz}px`,
+    `--dur:${1.8+Math.random()*4}s`,
+    `--dly:-${(Math.random()*7).toFixed(1)}s`,
+    `--lo:${(0.1+Math.random()*0.25).toFixed(2)}`,
+    `--hi:${(0.5+Math.random()*0.5).toFixed(2)}`,
+  ].join(';');
+  starsEl.appendChild(s);
+}
+
+// Fireflies — skip entirely if reduced motion is preferred
+const ffEl = document.getElementById('fireflies');
+for (let i = 0; i < (reduceMotion ? 0 : 9); i++) {
+  const f = document.createElement('div');
+  f.className = 'firefly';
+  f.style.cssText = [
+    `left:${8+Math.random()*84}%`,
+    `bottom:${8+Math.random()*24}%`,
+    `--dur:${5+Math.random()*8}s`,
+    `--dly:-${(Math.random()*10).toFixed(1)}s`,
+    `--dx:${((Math.random()-.5)*75).toFixed(0)}px`,
+    `--dx2:${((Math.random()-.5)*95).toFixed(0)}px`,
+  ].join(';');
+  ffEl.appendChild(f);
+}
+
+// Trees
+const treesEl = document.getElementById('trees');
+[[55,115],[82,168],[44,92],[98,190],[68,138],[58,122],
+ [88,175],[64,128],[78,155],[48,100],[84,164],[52,112],[42,88]]
+.forEach(([w,h]) => {
+  const t = document.createElement('div');
+  t.className = 'tree';
+  t.setAttribute('aria-hidden','true');
+  t.style.cssText = `width:${w}px;height:${h}px`;
+  treesEl.appendChild(t);
+});
+
+// Play gate
+const playOverlay = document.getElementById('playOverlay');
+const moonBtn = document.getElementById('moonButton');
+const playBtn     = document.getElementById('playBtn');
+let audioLive = false;
+
+document.getElementById('reloadBtn').addEventListener('click', () => check_state('playing'));
+//document.getElementById('moonButton').addEventListener('click', () => toggle_sync_state());
+
+// setTimeout(() => playOverlay.classList.add('show'), 2000);
+
+function showBigPLay() {
+  playOverlay.classList.remove('dismiss');
+  playOverlay.classList.add('show');
+}
+
+function hideBigPLay() {
+  playOverlay.classList.remove('show');
+  playOverlay.classList.add('dismiss');
+}
+
+function brightMoon() {
+  moonBtn.classList.remove('dismiss');
+  moonBtn.classList.add('show');
+}
+
+function regularMoon() {
+  moonBtn.classList.remove('show');
+  moonBtn.classList.add('dismiss');
+}
+
+
+//playBtn.addEventListener('click', startTheShow);
+//playBtn.addEventListener('keydown', e => {
+//  if (e.key === 'Enter' || e.key === ' ') startTheShow();
+//});
+
+function setWaiting(msg) {
+  document.body.classList.remove('state-playing');
+  document.body.classList.add('state-waiting');
+  typewrite(document.getElementById('waitingMsg'), msg);
+}
+
+function setMessage(msg) {
+  document.getElementById('waitingMsg')innerHTML = msg;
+}
+
+function typewrite(el, text) {
+  if (el._typed === text) return;
+  el._typed = text;
+  el.innerHTML = '';
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  el.appendChild(cursor);
+  let i = 0;
+  const t = setInterval(() => {
+    if (i < text.length) {
+      el.insertBefore(document.createTextNode(text[i++]), cursor);
+    } else {
+      clearInterval(t);
+      setTimeout(() => cursor.remove(), 3000);
+    }
+  }, 50);
+}
+
+let userAgent = navigator.userAgent.toLowerCase();
+//let Android = userAgent.indexOf("android") > -1;
+//if (Android == true){
+//  sync = -800;
+//}
+</script>
+</body>
+</html>
