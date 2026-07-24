@@ -11,8 +11,8 @@ localhost {
 	}
 
 	# respond "Not Found" 404
-	root /home/andreas/Documents/html/
+	root /home/silentcinema/Documents/html/
 }
 192.168.0.144:8008 {
-	root /home/andreas/Documents/html/
+	root /home/silentcinema/Documents/html/
 }

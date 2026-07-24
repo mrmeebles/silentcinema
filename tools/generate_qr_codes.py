@@ -15,7 +15,7 @@ def generate_QR_code(url, text, name, path="./"):
 	# Call draw Method to add 2D graphics in an image
 	I1 = ImageDraw.Draw(timg)
 	# Add Text to an image
-	myFont = ImageFont.truetype('/Users/andrew/Library/Fonts/DrCaligari.ttf', 200)
+	myFont = ImageFont.truetype('/home/silentcinema/Library/Fonts/DrCaligari.ttf', 200)
 	I1.text((20, 280), text, font=myFont, fill=(0, 0, 0))
 	# I1.text((20, 100), text, font=myFont, fill=(0, 0, 0))
 	# timg.show()
