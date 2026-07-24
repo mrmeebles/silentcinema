@@ -1,8 +1,14 @@
 # silentcinema
 ## Description
-A solution for a silent open air cinema, where each user connects with the 
-mobile device of their choice to listen to the audio. Also includes a film 
-schedule and tools for creating QR codes.
+A solution for a silent open air cinema. silentcinema was created in oder to 
+show movies open air without speakers. Each viewer loads an audio player
+in the browser of their mobile device and can listen in using their own
+headphones.
+
+The heart of the project is a small server, written in python, which sends 
+Server Side Events (SSE) to keep the audio player and the video in sync. Also 
+included are a schedule and tools for generating QR codes to connect to the 
+audio player.
 
 ## Prerequisites
 To make the silent cinema work, there's a few other things you're going to need:
@@ -90,6 +96,12 @@ Open your browser's developer tools, and click on "console". You should see regu
 - If Mercure is running and control.py can see it, it's possible they can't communicate for some reason. The Mercure auth written in .env assumes the default JWT is unchanged. You may need to update this. It's also possible the SSE event is not being recognized. In the Mercure UI page you can test all of this. 
 - If Mercure is running, updates are being received, but no audio is playing from the audio server, check the updates and make sure it's receiving the name of the currently playing file. In the console output, you should see "Playing: " followed by the name of the file. If updates are being received, but still no audio is being received, check the network tab and make sure the audio is being loaded. The player looks for an audio file with the same name as the media file, but ending with ".m4a". If the file doesn't exist, or is named even slightly differently, it can't be found.
 - If audio is playing, but it stops when the device is put in standby or if audio sync isn't correct, try index2.html instead of index.html
+
+## Other tools
+You'll find a couple more useful scripts in the /tools directory:
+- create_schedule.py - generates the schedule.json file from the playlists for use by the digital schedule
+- generate_qr_codes.py - generated QR codes for connecting to the audio player
+- generate_qr_wifi.py - generated QR codes for connecting to wifi
 
 ## Credits
 For audio playback, howler.js is used: https://github.com/goldfire/howler.js
